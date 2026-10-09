@@ -1,0 +1,130 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedClaim | Patient Receivables</title>
+  <link rel="stylesheet" href="{% static 'billing/styles.css' %}">
+  <script defer src="{% static 'billing/app.js' %}"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{% url 'billing:dashboard' %}"><span class="brand-mark">+</span> MedClaim <small>Billing Workspace</small></a>
+  <div class="top-actions"><span>Demo environment</span><span class="avatar">BU</span><span>Billing User</span></div>
+</header>
+<main class="page">
+  <div class="breadcrumbs">Patients <span>›</span> Receivables <span>›</span> Patient Account</div>
+  {% if messages %}<div class="messages">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  <section class="patient-card">
+    <div class="patient-heading">
+      <div><div class="eyebrow">PATIENT RECEIVABLES</div><h1>Medical Billing &amp; Claims <span class="status">Demo</span></h1><p class="muted">Fictional sample data for portfolio demonstration</p></div>
+      <div class="patient-actions"><button class="btn btn-light" id="openClaimBlank">Claim form guide</button><a class="btn btn-primary" href="/admin/billing/claim/add/">＋ Add Claim</a></div>
+    </div>
+    <div class="summary-grid">
+      <div><span class="field-label">Patients in demo</span><strong>{{ patients|length }}</strong></div>
+      <div><span class="field-label">EMC / claim type</span><strong>Professional · CMS-1500</strong></div>
+      <div><span class="field-label">Active insurance payers</span><strong>{{ payers|length }}</strong></div>
+      <div><span class="field-label">Database</span><strong>MySQL · Django ORM</strong></div>
+    </div>
+    <div class="totals">
+      <div><span>Total charges</span><strong>${{ totals.charges|floatformat:2 }}</strong></div>
+      <div><span>Total adjustments</span><strong class="negative">−${{ totals.adjustments|floatformat:2 }}</strong></div>
+      <div><span>Total payments</span><strong class="negative">−${{ totals.payments|floatformat:2 }}</strong></div>
+      <div><span>Estimated balance</span><strong class="balance">${{ totals.balance|floatformat:2 }}</strong></div>
+    </div>
+  </section>
+
+  <form method="get" class="toolbar" id="filterForm">
+    <div class="toolbar-left">
+      <label>Patient
+        <select name="patient" id="patientFilter"><option value="">All patients</option>{% for patient in patients %}<option value="{{ patient.id }}" {% if selected_patient == patient.id|stringformat:"s" %}selected{% endif %}>{{ patient.full_name }} ({{ patient.patient_id }})</option>{% endfor %}</select>
+      </label>
+      <label>Insurance payer
+        <select name="payer" id="payerFilter"><option value="">All insurance payers</option>{% for payer in payers %}<option value="{{ payer.id }}" {% if selected_payer == payer.id|stringformat:"s" %}selected{% endif %}>{{ payer.name }}</option>{% endfor %}</select>
+      </label>
+      <button class="btn btn-green" type="submit">Apply filters</button>
+      <a class="btn btn-light" href="{% url 'billing:dashboard' %}">Reset</a>
+    </div>
+    <div class="toolbar-right"><span class="muted">Showing {{ claims|length }} claim(s)</span></div>
+  </form>
+
+  <section class="claim-list">
+    {% for claim in claims %}
+    <article class="claim">
+      <div class="claim-header">
+        <div><span class="claim-label">PATIENT / PROVIDER</span><strong>{{ claim.patient.full_name }}</strong><small>{{ claim.provider_name }}</small></div>
+        <div><span class="claim-label">PROCEDURE</span><strong>{{ claim.procedure_code }} · Qty: {{ claim.quantity }}</strong><small>{{ claim.procedure_description }}</small></div>
+        <div><span class="claim-label">PAYER / DIAGNOSIS</span><strong>{{ claim.payer.name }}</strong><small>{{ claim.diagnosis_codes|default:"No diagnosis codes entered" }}</small></div>
+        <div class="charge"><span>Charge</span><strong>${{ claim.charge_amount|floatformat:2 }}</strong></div>
+      </div>
+      <div class="claim-meta">
+        <span><b>Service date:</b> {{ claim.service_date|date:"m/d/Y" }}</span>
+        <span><b>Batch:</b> {{ claim.batch_number|default:"—" }}</span>
+        <span><b>Balance:</b> ${{ claim.balance|floatformat:2 }}</span>
+        <span><b>Status:</b> <span class="status status-{{ claim.status|lower }}">{{ claim.status }}</span></span>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>EOB allowed</th><th>Reference notes</th><th>Documents</th><th>Update status</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td>{{ claim.service_date|date:"m/d/Y" }}</td><td>Billed</td><td>${{ claim.charge_amount|floatformat:2 }}</td><td>${{ claim.balance|floatformat:2 }}</td>
+            <td>{% for eob in claim.eobs.all %}${{ eob.allowed_amount|floatformat:2 }}{% empty %}—{% endfor %}</td>
+            <td class="reference">{{ claim.reference_note|default:"Claim submitted for review" }}</td>
+            <td class="doc-actions">
+              <button type="button" class="text-btn view-eob" data-eob-id="{% for eob in claim.eobs.all %}{{ eob.id }}{% endfor %}" {% if not claim.eobs.all %}disabled{% endif %}>View EOB</button>
+              <button type="button" class="text-btn view-claim" data-claim-id="{{ claim.id }}">Claim form</button>
+            </td>
+            <td>
+              <select class="status-select" aria-label="Claim status" data-claim-id="{{ claim.id }}">
+                {% for value,label in claim.STATUS_CHOICES %}<option value="{{ value }}" {% if claim.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><button type="button" class="btn btn-post save-status" data-claim-id="{{ claim.id }}">Save</button></td>
+          </tr>
+        </tbody>
+      </table></div>
+    </article>
+    {% empty %}
+    <div class="empty-state">No claims match these filters. Try selecting “All patients” and “All insurance payers”.</div>
+    {% endfor %}
+  </section>
+
+  <section class="notes-card">
+    <div class="notes-editor">
+      <h2>Add account note</h2>
+      <form method="post" action="{% url 'billing:add_note' %}" id="noteForm">
+        {% csrf_token %}
+        <label>Patient
+          <select name="patient_id" id="notePatient" required>{% for patient in patients %}<option value="{{ patient.id }}">{{ patient.full_name }} ({{ patient.patient_id }})</option>{% endfor %}</select>
+        </label>
+        <label>Related claim (optional)
+          <select name="claim_id" id="noteClaim"><option value="">Account-wide note</option>{% for claim in claims %}<option value="{{ claim.id }}" data-patient="{{ claim.patient_id }}">{{ claim.procedure_code }} · {{ claim.patient.full_name }} · {{ claim.service_date|date:"m/d/Y" }}</option>{% endfor %}</select>
+        </label>
+        <label>Note type
+          <select name="note_type"><option>Account Note</option><option>Billing Alert</option><option>Follow-up</option><option>Clinical Alert</option></select>
+        </label>
+        <textarea name="note" placeholder="Enter claim follow-up details..." required maxlength="2000"></textarea>
+        <button class="btn btn-primary" type="submit">＋ Save note</button>
+      </form>
+    </div>
+    <div class="notes-history">
+      <div class="notes-title"><h2>Recent notes</h2><span class="muted">Latest 12</span></div>
+      {% for note in notes %}
+      <div class="note-row"><div><strong>{{ note.note_type }} · {{ note.patient.full_name }}</strong><p>{{ note.note }}</p><small>{{ note.created_by }} · {{ note.created_at|date:"m/d/Y, h:i A" }}{% if note.claim %} · Claim {{ note.claim.procedure_code }}{% endif %}</small></div><span class="active-tag">{% if note.active %}Active{% else %}Inactive{% endif %}</span></div>
+      {% empty %}<p class="muted">No notes have been added yet.</p>{% endfor %}
+    </div>
+  </section>
+  <footer>MedClaim Billing Workspace <span>Fictional demo data · Not for real patient records</span></footer>
+</main>
+
+<div class="modal-backdrop" id="detailModal" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header"><div><span class="eyebrow" id="modalEyebrow">DOCUMENT VIEWER</span><h2 id="modalTitle">Claim details</h2></div><button class="close-btn" id="closeModal" aria-label="Close dialog">×</button></div>
+    <div id="modalContent" class="modal-content"><p>Loading details…</p></div>
+    <div class="modal-footer"><span class="muted">Fictional demo document</span><button class="btn btn-primary" id="closeModalBottom">Close</button></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
